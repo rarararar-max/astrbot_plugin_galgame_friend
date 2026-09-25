@@ -1,0 +1,44 @@
+{
+  "option_count": {
+    "description": "回复候选条数",
+    "type": "int",
+    "default": 3,
+    "hint": "每次好友发来消息后，AI 生成几条可以直接发送的候选台词（1-6）。"
+  },
+  "history_limit": {
+    "description": "生成候选时注入的最近消息条数",
+    "type": "int",
+    "default": 100,
+    "hint": "每条消息算一条；50 轮对话约等于 100 条。越大越了解上下文，token 消耗也越高（deepseek-flash 上下文 100 万，放 100 条很轻松）。"
+  },
+  "debounce_seconds": {
+    "description": "好友连发消息时的等待秒数",
+    "type": "float",
+    "default": 2.5,
+    "hint": "好友连续发好几条消息时，等对方停手这么多秒再生成一次候选，避免每条都请求一次模型（省钱，也不会刷出过期候选）。设 0 表示不等待。"
+  },
+  "persona_prompt": {
+    "description": "军师人设提示词",
+    "type": "string",
+    "default": "",
+    "hint": "留空则使用内置提示词。这里描述「你希望 AI 以什么风格替你出主意」。"
+  },
+  "keep_auto_reply": {
+    "description": "保留 AstrBot 的自动回复",
+    "type": "bool",
+    "default": false,
+    "hint": "关闭时（默认），已被本插件接管的好友私聊不会被 AstrBot 自动回复，一切由你在页面上点选发出；打开则完全不动 AstrBot 的自动回复，插件只提供页面和发送。"
+  },
+  "block_unbound_private": {
+    "description": "连没绑定的好友也不自动回复",
+    "type": "bool",
+    "default": false,
+    "hint": "默认关闭：只有你在插件里绑定过的好友会被接管，其他私聊照旧由 AstrBot 自动回复。打开后所有私聊都不会自动回复（WebUI 自带聊天页除外），适合“所有私聊都想手动回”的用法。"
+  },
+  "vision_for_images": {
+    "description": "让 AI 直接看好友发的图片/表情包",
+    "type": "bool",
+    "default": true,
+    "hint": "开启后，好友发来的图片会一起交给模型。模型支持图片输入（如 deepseek-flash）就直接看懂；不支持则自动改用 AstrBot「配置文件 → 默认图片转述模型」把它变成文字描述，两者都没有时只显示「[图片]」占位。语音同理，会尝试用你配置的语音识别模型转成文字。"
+  }
+}

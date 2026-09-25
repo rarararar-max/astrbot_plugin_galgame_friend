@@ -1,0 +1,1488 @@
+:root {
+  --text: #f6fbff;
+  --muted: #a9bdd4;
+  --accent: #7fd4ff;
+  --accent-strong: #38b6ff;
+  --panel: rgba(9, 18, 33, 0.82);
+  --panel-solid: #0b1626;
+  --line: rgba(255, 255, 255, 0.18);
+  --danger: #ff5d7a;
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Must win over every author `display` rule below: without this, flex panels
+   such as .vn-empty or .log-window stay visible even when [hidden] is set. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: var(--text);
+  background: #060d18;
+}
+
+/* ==================== stage ==================== */
+
+.vn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 30%, #16273f, #050a14 70%);
+}
+
+.vn-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: opacity 0.5s ease;
+}
+
+/* darkens the bottom so the dialogue and choices stay readable */
+.vn-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 54% 64% at 50% 42%,
+      rgba(150, 205, 255, 0.1),
+      rgba(150, 205, 255, 0) 72%
+    ),
+    radial-gradient(circle at 50% 38%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.5)),
+    linear-gradient(
+      to top,
+      rgba(3, 8, 16, 0.94) 0%,
+      rgba(3, 8, 16, 0.55) 26%,
+      rgba(3, 8, 16, 0) 48%
+    );
+}
+
+/* Choice focus: dims background + sprite so option text always reads. */
+.vn-focus {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  background: radial-gradient(
+    ellipse 68% 72% at 50% 46%,
+    rgba(2, 6, 14, 0.42),
+    rgba(2, 6, 14, 0.68)
+  );
+}
+
+.vn.choosing .vn-focus {
+  opacity: 1;
+}
+
+.vn-sprite {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  height: 92%;
+  width: min(64%, 700px);
+  transform: translate(-50%, 16px);
+  background-repeat: no-repeat;
+  background-position: bottom center;
+  background-size: contain;
+  filter: drop-shadow(0 18px 38px rgba(0, 0, 0, 0.6));
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  pointer-events: none;
+}
+
+.vn-sprite.enter {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  animation: breathe 5.5s ease-in-out 0.6s infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, -8px);
+  }
+}
+
+/* ==================== top bar ==================== */
+
+.vn-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  z-index: 6;
+}
+
+.vn-top-spacer {
+  flex: 1;
+}
+
+.tag {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  background: rgba(5, 12, 22, 0.72);
+  border: 1px solid rgba(158, 210, 255, 0.22);
+  color: var(--text);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag.soft {
+  color: #d8e9fb;
+}
+
+.tag.name {
+  background: linear-gradient(90deg, var(--accent-strong), #6f8cff);
+  border-color: transparent;
+  box-shadow: 0 8px 20px rgba(56, 140, 255, 0.35);
+  font-weight: 600;
+}
+
+.icon-btn {
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(6, 14, 26, 0.62);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.icon-btn:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.icon-btn.active {
+  border-color: var(--accent);
+  color: #04121f;
+  background: var(--accent-strong);
+  font-weight: 600;
+}
+
+/* ==================== choices (just above the dialogue box) ==================== */
+
+/* Anchored above the dialogue box so the sprite's face stays visible. */
+.vn-choices {
+  position: absolute;
+  left: 50%;
+  bottom: 196px;
+  transform: translateX(-50%);
+  width: min(600px, 72%);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  z-index: 7;
+  animation: choices-in 0.28s ease;
+}
+
+@keyframes choices-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 7px;
+  /* Semi-transparent so the sprite shows through, kept readable by a strong
+     backdrop blur plus the stage dimming layer. */
+  border: 1px solid rgba(158, 210, 255, 0.26);
+  background: linear-gradient(
+    100deg,
+    rgba(18, 40, 72, 0.7),
+    rgba(9, 18, 33, 0.63) 58%,
+    rgba(6, 13, 24, 0.58)
+  );
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(1.05);
+  color: #f5fbff;
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.45;
+  text-align: left;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.95),
+    0 0 14px rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+  animation: choice-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+/* left accent rail */
+.choice::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: linear-gradient(
+    180deg,
+    rgba(127, 212, 255, 0.9),
+    rgba(127, 212, 255, 0.15)
+  );
+  opacity: 0.75;
+  transition: opacity 0.16s ease;
+}
+
+.choice:nth-child(1) {
+  animation-delay: 0.02s;
+}
+
+.choice:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.choice:nth-child(3) {
+  animation-delay: 0.18s;
+}
+
+.choice:nth-child(4) {
+  animation-delay: 0.26s;
+}
+
+@keyframes choice-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.choice .num {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(163, 217, 255, 0.5);
+  background: rgba(56, 182, 255, 0.18);
+  color: #e2f4ff;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-shadow: none;
+}
+
+.choice:hover:not(:disabled) {
+  transform: translateY(-2px) translateX(3px);
+  border-color: rgba(190, 232, 255, 0.75);
+  background: linear-gradient(
+    100deg,
+    rgba(28, 60, 106, 0.78),
+    rgba(13, 26, 47, 0.7) 58%,
+    rgba(9, 18, 33, 0.66)
+  );
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(127, 212, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13);
+}
+
+.choice:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.choice:disabled {
+  cursor: default;
+  opacity: 0.62;
+  filter: saturate(0.5);
+}
+
+.choice.used {
+  border-color: rgba(127, 255, 208, 0.6);
+  background: linear-gradient(
+    100deg,
+    rgba(20, 76, 62, 0.94),
+    rgba(9, 30, 27, 0.9)
+  );
+}
+
+.choice.used .num {
+  font-size: 0;
+  border-color: rgba(127, 255, 208, 0.7);
+  background: rgba(60, 220, 160, 0.22);
+}
+
+.choice.used .num::after {
+  content: "✓";
+  font-size: 13px;
+  color: #9effd0;
+}
+
+.vn-regenerate {
+  align-self: center;
+  margin-top: 2px;
+  padding: 7px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(158, 210, 255, 0.28);
+  background: rgba(6, 14, 26, 0.72);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.vn-regenerate:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* ==================== bottom: composer + dialogue ==================== */
+
+/* Floating, right-hand input panel: hidden until the 「自己写」 button is used. */
+.vn-composer {
+  position: absolute;
+  right: 16px;
+  bottom: 176px;
+  width: min(430px, 64%);
+  z-index: 13;
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: rgba(6, 14, 26, 0.9);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.5);
+  animation: fade-in 0.16s ease;
+}
+
+.vn-composer::after {
+  content: "这条自己写的，不加好感度";
+  position: absolute;
+  right: 12px;
+  top: -18px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.vn-composer textarea {
+  flex: 1;
+  min-height: 46px;
+  max-height: 110px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(9, 18, 33, 0.8);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  outline: none;
+}
+
+.vn-composer textarea:focus {
+  border-color: var(--accent);
+}
+
+.vn-dialogue {
+  position: relative;
+  z-index: 8;
+  min-height: 132px;
+  padding: 30px 9% 40px;
+  text-align: center;
+  cursor: pointer;
+  background: linear-gradient(
+    to top,
+    rgba(3, 8, 16, 0.97) 0%,
+    rgba(3, 8, 16, 0.86) 46%,
+    rgba(3, 8, 16, 0.35) 78%,
+    rgba(3, 8, 16, 0) 100%
+  );
+}
+
+.speaker {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #f2fbff;
+  background: linear-gradient(90deg, var(--accent-strong), #6f8cff);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.16) inset;
+  white-space: nowrap;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.speaker:empty {
+  display: none;
+}
+
+.line {
+  margin: 10px auto 0;
+  max-width: 980px;
+  font-size: 17.5px;
+  line-height: 1.8;
+  letter-spacing: 0.01em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.9),
+    0 0 22px rgba(0, 0, 0, 0.6);
+}
+
+.line.typing::after {
+  content: "▍";
+  margin-left: 2px;
+  color: var(--accent);
+  animation: blink 0.9s steps(1) infinite;
+}
+
+.next-hint {
+  position: absolute;
+  right: 8%;
+  bottom: 12px;
+  color: var(--accent);
+  font-size: 15px;
+  animation: bounce 1.1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(4px);
+    opacity: 1;
+  }
+}
+
+/* ==================== empty / toast ==================== */
+
+.vn-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(233, 244, 255, 0.7);
+  text-align: center;
+  pointer-events: none;
+}
+
+.vn-empty p {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.05em;
+}
+
+.vn-empty .sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.vn-status {
+  position: absolute;
+  left: 50%;
+  top: 62px;
+  transform: translateX(-50%);
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: rgba(6, 14, 26, 0.8);
+  border: 1px solid var(--line);
+  color: var(--text);
+  backdrop-filter: blur(8px);
+  z-index: 9;
+  max-width: 80%;
+  text-align: center;
+}
+
+.vn-status.error {
+  border-color: var(--danger);
+  color: #ffd9e1;
+}
+
+/* ==================== drawer ==================== */
+
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 14, 0.5);
+  z-index: 20;
+  animation: fade-in 0.2s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(410px, 92vw);
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+  z-index: 21;
+  animation: slide-in 0.22s ease;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-head h1 {
+  margin: 0;
+  flex: 1;
+  font-size: 17px;
+}
+
+.hint {
+  margin: 8px 0 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.drawer-section {
+  margin-bottom: 20px;
+}
+
+.drawer-section h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.roster-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.roster-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.roster-list li:hover {
+  border-color: var(--accent);
+}
+
+.roster-list li.active {
+  border-color: var(--accent);
+  background: rgba(80, 170, 255, 0.16);
+}
+
+.roster-list .item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-list .item-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-list .item-action {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.roster-list .empty {
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: default;
+  background: none;
+}
+
+.roster-list .empty:hover {
+  border-color: transparent;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.field span {
+  flex: none;
+  width: 42px;
+  color: var(--muted);
+}
+
+.field select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(6, 14, 26, 0.7);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.upload-btn {
+  display: block;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.upload-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.upload-btn input[type="file"] {
+  display: none;
+}
+
+.btn {
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--accent-strong);
+  color: #04121f;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:hover {
+  filter: brightness(1.1);
+}
+
+.btn.danger {
+  width: 100%;
+  margin-top: 4px;
+  background: transparent;
+  border-color: rgba(255, 93, 122, 0.55);
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.btn.subtle {
+  width: 100%;
+  margin: 2px 0 10px;
+  padding: 7px 12px;
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.btn.subtle:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  filter: none;
+}
+
+.btn.danger.armed {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+}
+
+@media (max-width: 720px) {
+  .vn-sprite {
+    height: 76%;
+    width: 78%;
+  }
+
+  .choice {
+    font-size: 15px;
+    padding: 12px 26px;
+  }
+
+  .line {
+    font-size: 15.5px;
+  }
+
+  .vn-dialogue {
+    min-height: 120px;
+    padding: 26px 6% 34px;
+  }
+}
+
+/* ==================== library: tabs ==================== */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 6px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tab.active {
+  color: #04121f;
+  background: var(--accent-strong);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.inline-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.inline-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(6, 14, 26, 0.7);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.inline-form input:focus {
+  border-color: var(--accent);
+}
+
+.item-action.danger {
+  color: var(--danger);
+}
+
+/* ==================== library: sprites ==================== */
+
+.sprite-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sprite-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+}
+
+.sprite-thumb {
+  width: 62px;
+  height: 82px;
+  flex: none;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 8px;
+  background: #0b1626;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.sprite-thumb:hover {
+  border-color: var(--accent);
+}
+
+.sprite-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sprite-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* min-width:0 lets a very long file name shrink instead of widening the row */
+  min-width: 0;
+}
+
+.sprite-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-strong);
+  color: #04121f;
+}
+
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #eaf7ff;
+  background: rgba(80, 170, 255, 0.22);
+  border: 1px solid rgba(140, 210, 255, 0.5);
+}
+
+.tag-chip button {
+  padding: 0 3px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.tag-chip button:hover {
+  opacity: 1;
+  color: var(--danger);
+}
+
+.tag-empty {
+  font-size: 11.5px;
+  color: var(--danger);
+  opacity: 0.85;
+}
+
+.tag-add input {
+  width: 100%;
+  padding: 5px 9px;
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.tag-add input:focus {
+  border-color: var(--accent);
+}
+
+.tag-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-presets button {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.tag-presets button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.sprite-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mini {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mini:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.mini.danger {
+  color: var(--danger);
+  border-color: rgba(255, 93, 122, 0.4);
+}
+
+/* ==================== library: backgrounds ==================== */
+
+.background-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.background-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+
+/* the name must shrink, otherwise a long file name pushes 删除 out of the panel */
+.background-item .item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.background-item .item-action {
+  flex: none;
+}
+
+.background-thumb {
+  width: 64px;
+  height: 36px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #0b1626;
+}
+
+/* ==================== affection ==================== */
+
+/* Affection pill doubles as a progress bar: --aff is set from JS. */
+.tag.heart {
+  position: relative;
+  border-color: rgba(255, 112, 156, 0.5);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 95, 143, 0.85) var(--aff, 0%),
+    rgba(84, 26, 48, 0.72) var(--aff, 0%)
+  );
+  font-weight: 600;
+  transition: background 0.5s ease;
+  min-width: 104px;
+  text-align: center;
+}
+
+.tag.pop {
+  animation: tag-pop 0.5s ease;
+}
+
+@keyframes tag-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.affect-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.affect {
+  position: absolute;
+  left: 50%;
+  top: 20%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 21px;
+  backdrop-filter: blur(6px);
+  animation: affect-rise 1.8s ease-out forwards;
+}
+
+.affect.up {
+  color: #8dffc8;
+  background: rgba(18, 78, 54, 0.88);
+  box-shadow: 0 0 26px rgba(80, 255, 170, 0.45);
+}
+
+.affect.down {
+  color: #ffb3c2;
+  background: rgba(88, 18, 40, 0.88);
+  box-shadow: 0 0 26px rgba(255, 90, 130, 0.45);
+}
+
+.affect-angle {
+  font-size: 12.5px;
+  font-weight: 500;
+  opacity: 0.88;
+}
+
+@keyframes affect-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 14px) scale(0.9);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.1);
+  }
+  38% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -48px) scale(1);
+  }
+}
+
+/* ==================== choice layout with angle + delta ==================== */
+
+.choice {
+  align-items: flex-start;
+}
+
+.choice .num {
+  line-height: 1.5;
+}
+
+/* One-line layout: text on the left, angle + delta pinned to the right. */
+.choice-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.choice-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.choice-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.choice-angle {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: #cfe6ff;
+  background: rgba(127, 212, 255, 0.16);
+  border: 1px solid rgba(127, 212, 255, 0.28);
+}
+
+.choice-delta {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.choice-delta.up {
+  color: #9dffd4;
+  background: rgba(60, 220, 160, 0.16);
+}
+
+.choice-delta.down {
+  color: #ffb3c2;
+  background: rgba(255, 95, 143, 0.16);
+}
+
+/* ==================== floating chat log ==================== */
+
+.log-window {
+  position: absolute;
+  right: 16px;
+  top: 62px;
+  bottom: 184px;
+  width: min(440px, 88vw);
+  display: flex;
+  flex-direction: column;
+  background: rgba(6, 14, 26, 0.93);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  z-index: 14;
+  animation: fade-in 0.18s ease;
+}
+
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.log-head h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 14px;
+}
+
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 10px 14px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.log-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.log-who {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.log-line.me .log-who {
+  color: var(--accent);
+}
+
+.log-text {
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-time {
+  font-size: 10.5px;
+  color: rgba(169, 189, 212, 0.65);
+}
+
+.log-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ==================== reduced motion ==================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==================== persona / relation editors ==================== */
+
+.block-field {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.block-field > span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+}
+
+.block-field textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(6, 14, 26, 0.72);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+
+.block-field textarea:focus {
+  border-color: var(--accent);
+}
+
+/* save buttons that follow a field take the full drawer width */
+.block-field + .btn {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+/* ==================== portrait cross-fade ==================== */
+
+.vn-sprite {
+  z-index: 1;
+}
+
+/* Keeps the outgoing portrait on screen while the new one fades in, so an
+   emotion change is a cross-fade instead of a blink. */
+.vn-sprite-back {
+  z-index: 0;
+  opacity: 0;
+  transform: translate(-50%, 0);
+  transition: opacity 0.26s ease;
+}
+
+.vn-sprite-back.show {
+  opacity: 1;
+}
+
+/* ==================== thinking indicator ==================== */
+
+.vn-status.thinking {
+  animation: thinking-pulse 1.3s ease-in-out infinite;
+}
+
+.vn-status.thinking::after {
+  content: "";
+  display: inline-block;
+  width: 1.1em;
+  text-align: left;
+  animation: thinking-dots 1.3s steps(4, end) infinite;
+}
+
+@keyframes thinking-dots {
+  0% {
+    content: "";
+  }
+  25% {
+    content: ".";
+  }
+  50% {
+    content: "..";
+  }
+  75%,
+  100% {
+    content: "...";
+  }
+}
+
+@keyframes thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ==================== first-run guide ==================== */
+
+.guide {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  border: 1px solid rgba(127, 212, 255, 0.28);
+  background: rgba(56, 182, 255, 0.08);
+}
+
+.guide h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.guide ol {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.guide li {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #d9e9fb;
+}
+
+.guide li b {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.guide li.done {
+  color: var(--muted);
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.guide li.done::marker {
+  content: "✓ ";
+  color: #9effd0;
+}

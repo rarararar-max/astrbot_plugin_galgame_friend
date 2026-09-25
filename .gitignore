@@ -1,0 +1,12 @@
+# Never publish personal sprites / backgrounds or runtime data from the plugin
+# directory. Only the empty assets folder and the example art that ships with
+# the plugin are tracked.
+pages/galgame/assets/*
+!pages/galgame/assets/.gitkeep
+!pages/galgame/assets/default_*.webp
+
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.db
+.venv/

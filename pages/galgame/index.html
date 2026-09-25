@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>好友 Galgame</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <!-- Visual novel stage: background, centered sprite, mid-screen choices,
+         bottom dialogue bar. All management UI lives in the drawer. -->
+    <div class="vn" id="vn">
+      <div class="vn-bg" id="vn-bg"></div>
+      <div class="vn-shade"></div>
+
+      <!-- holds the previous portrait so an emotion change can cross-fade -->
+      <div class="vn-sprite vn-sprite-back" id="vn-sprite-back"></div>
+      <div class="vn-sprite" id="vn-sprite"></div>
+
+      <!-- dims the whole stage while choices are on screen, so the option text
+           stays readable over any background -->
+      <div class="vn-focus" id="vn-focus"></div>
+
+      <div class="vn-top">
+        <span class="tag name" id="tag-name" hidden></span>
+        <span class="tag heart" id="tag-affection" hidden></span>
+        <span class="tag soft" id="tag-emotion" hidden></span>
+        <div class="vn-top-spacer"></div>
+        <button class="icon-btn" id="open-log" type="button">
+          记录
+        </button>
+        <button class="icon-btn" id="composer-toggle" type="button">
+          自己写
+        </button>
+        <button class="icon-btn" id="open-drawer" type="button">素材 / 好友</button>
+      </div>
+
+      <div class="vn-choices" id="vn-choices" hidden></div>
+
+      <div class="vn-composer" id="vn-composer" hidden>
+        <textarea
+          id="manual-input"
+          rows="1"
+          placeholder="自己写一句（不加好感度），Enter 发送，Shift+Enter 换行"
+        ></textarea>
+        <button class="btn" id="manual-send" type="button">发送</button>
+      </div>
+
+      <div class="vn-dialogue" id="vn-dialogue" hidden>
+        <div class="speaker" id="speaker"></div>
+        <p class="line" id="line"></p>
+        <span class="next-hint" id="next-hint" hidden>▼</span>
+      </div>
+
+      <div class="vn-empty" id="vn-empty">
+        <p>还没有选中好友</p>
+        <p class="sub">点右上角「素材 / 好友」，绑定一个最近私聊过的人</p>
+      </div>
+
+      <div class="vn-status" id="vn-status" hidden></div>
+
+      <!-- floating affection change effect -->
+      <div class="affect-layer" id="affect-layer"></div>
+
+      <!-- floating chat log -->
+      <div class="log-window" id="log-window" hidden>
+        <header class="log-head">
+          <h2>过往聊天记录</h2>
+          <button class="icon-btn" id="close-log" type="button">✕</button>
+        </header>
+        <ul class="log-list" id="log-list"></ul>
+      </div>
+    </div>
+
+    <div class="drawer-scrim" id="drawer-scrim" hidden></div>
+    <aside class="drawer" id="drawer" hidden>
+      <header class="drawer-head">
+        <h1>好友 Galgame</h1>
+        <button class="icon-btn" id="close-drawer" type="button">✕</button>
+      </header>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab active" id="tab-btn-friends" type="button">好友</button>
+        <button class="tab" id="tab-btn-persona" type="button">人设</button>
+        <button class="tab" id="tab-btn-characters" type="button">角色库</button>
+        <button class="tab" id="tab-btn-backgrounds" type="button">背景库</button>
+      </nav>
+
+      <!-- ------------------------------ 好友 ------------------------------ -->
+      <section class="tab-panel" id="panel-friends">
+        <div class="guide" id="setup-guide" hidden>
+          <h2>三步就能玩起来</h2>
+          <ol>
+            <li id="guide-character">
+              在「<b>角色库</b>」新建一个角色，上传立绘并打上情绪标签；也可以一键
+              <b>载入插件自带的示例素材</b>
+            </li>
+            <li id="guide-background">
+              在「<b>背景库</b>」上传一张背景
+            </li>
+            <li id="guide-bind">
+              让好友给机器人发一条<b>私聊</b>，然后在下面把它绑定成角色
+            </li>
+          </ol>
+        </div>
+
+        <p class="hint" id="roster-hint">正在加载…</p>
+
+        <h2>已绑定</h2>
+        <ul class="roster-list" id="binding-list"></ul>
+
+        <h2>最近私聊</h2>
+        <ul class="roster-list" id="session-list"></ul>
+
+        <div id="binding-editor" hidden>
+          <h2 id="binding-title">当前好友</h2>
+          <label class="field">
+            <span>角色</span>
+            <select id="bind-character"></select>
+          </label>
+          <label class="field">
+            <span>背景</span>
+            <select id="bind-background"></select>
+          </label>
+          <label class="block-field">
+            <span>我和他的关系（只对这位好友生效）</span>
+            <textarea
+              id="relation-input"
+              rows="3"
+              placeholder="例如：高中同学，认识八年了，平时互相损，但认真的事都会帮对方。他最近在忙项目，压力大。"
+            ></textarea>
+          </label>
+          <button class="btn" id="save-relation" type="button">保存关系描述</button>
+          <button class="btn danger" id="unbind-button" type="button">
+            解绑这位好友
+          </button>
+        </div>
+      </section>
+
+      <!-- ------------------------------ 人设 ------------------------------ -->
+      <section class="tab-panel" id="panel-persona" hidden>
+        <h2>我的人设（所有好友通用）</h2>
+        <p class="hint">
+          这里写「你自己」是谁：年龄职业、性格、说话习惯、口头禅、在意什么。
+          写得越具体，三个候选越不像 AI 写的。留空则退回到通用助手口吻。
+        </p>
+        <label class="block-field">
+          <span>我的人设</span>
+          <textarea
+            id="self-persona-input"
+            rows="10"
+            placeholder="例如：24 岁男生，做后端的，话不多但挺冷幽默，喜欢用短句和「草」「行吧」这类词。不爱打标点，偶尔发语音。嘴上损人，其实挺在意对方的情绪。"
+          ></textarea>
+        </label>
+        <button class="btn" id="save-self-persona" type="button">
+          保存我的人设
+        </button>
+        <p class="hint">
+          提示：和某位好友特有的关系（同学 / 网友 / 暧昧对象）不写在这里，
+          去「好友」页为那位好友单独填。
+        </p>
+      </section>
+
+      <!-- ------------------------------ 角色库 ------------------------------ -->
+      <section class="tab-panel" id="panel-characters" hidden>
+        <div class="inline-form">
+          <input
+            type="text"
+            id="new-character-name"
+            placeholder="新角色叫什么名字？"
+          />
+          <button class="btn" id="new-character" type="button">新建</button>
+        </div>
+        <p class="hint">
+          每个角色可以有多张立绘，每张立绘打上情绪标签（如 高兴 / 害羞）。
+          AI 会从这些标签里挑一个来切换立绘。
+        </p>
+        <button class="btn subtle" id="load-defaults" type="button">
+          载入插件自带的示例素材
+        </button>
+        <ul class="roster-list" id="character-list"></ul>
+
+        <div id="character-editor" hidden>
+          <h2 id="character-title"></h2>
+          <label class="upload-btn">
+            上传一张立绘
+            <input type="file" id="sprite-upload" accept="image/*" />
+          </label>
+          <ul class="sprite-list" id="sprite-list"></ul>
+        </div>
+      </section>
+
+      <!-- ------------------------------ 背景库 ------------------------------ -->
+      <section class="tab-panel" id="panel-backgrounds" hidden>
+        <label class="upload-btn">
+          上传一张背景
+          <input type="file" id="background-upload" accept="image/*" />
+        </label>
+        <p class="hint">背景由你自己在「好友」页为每位好友挑选。</p>
+        <ul class="background-list" id="background-list"></ul>
+      </section>
+    </aside>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
