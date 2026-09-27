@@ -8,6 +8,9 @@ at one character plus one background, so the same character can be reused.
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import io
 import json
 import mimetypes
 import re
@@ -30,8 +33,21 @@ from .store import GalgameStore
 
 PLUGIN_NAME = "astrbot_plugin_galgame_friend"
 PAGE_NAME = "galgame"
-ASSETS_DIR = Path(__file__).resolve().parent / "pages" / PAGE_NAME / "assets"
+# Art that ships inside the plugin. Treated as read only: the plugin directory is
+# replaced wholesale on every update, so nothing user created may live here.
+BUNDLED_ASSETS_DIR = Path(__file__).resolve().parent / "pages" / PAGE_NAME / "assets"
+# Uploaded art lives with the rest of the plugin's persistent data.
+PLUGIN_DATA_DIR = Path(get_astrbot_plugin_data_path()) / PLUGIN_NAME
+DATA_ASSETS_DIR = PLUGIN_DATA_DIR / "assets"
+THUMBNAIL_DIR = PLUGIN_DATA_DIR / "thumbnails"
 ALLOWED_ASSET_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+# Display limits for the images handed to the page. A plugin Page runs in a
+# sandboxed iframe that cannot reach the dashboard's own static routes, so the
+# only way it can show an uploaded file is for the backend to inline the bytes.
+STAGE_MAX_SIDE = 1536
+STAGE_QUALITY = 85
+THUMBNAIL_MAX_SIDE = 320
+THUMBNAIL_QUALITY = 72
 # Example art shipped inside the plugin, so a fresh install has something to show
 # before the user uploads their own. File names stay ASCII because the plugin is
 # distributed as a zip archive, while the emotion labels are Chinese on purpose:
@@ -493,6 +509,12 @@ class FriendGalgame(Star):
                 "Upload an image",
             ),
             (
+                f"/{PLUGIN_NAME}/image",
+                self.api_image,
+                ["GET"],
+                "Read one asset as a data URL",
+            ),
+            (
                 f"/{PLUGIN_NAME}/defaults",
                 self.api_load_defaults,
                 ["POST"],
@@ -508,21 +530,23 @@ class FriendGalgame(Star):
             context.register_web_api(route, handler, methods, desc)
 
     async def initialize(self) -> None:
-        """Prepare the database, the asset directory, and the example library."""
+        """Prepare the database, the data directories, and the example library."""
         await self.store.initialize()
-        ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+        DATA_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+        THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
         # Some platforms (notably Windows, which asks the registry) have no
-        # mapping for .webp. Without this the page requests the bundled sprites
-        # and AstrBot answers with application/octet-stream. ``strict`` keeps the
-        # official type from being recorded as a non-standard one.
+        # mapping for .webp. Without this a .webp asset is described as
+        # application/octet-stream, and ``X-Content-Type-Options: nosniff`` then
+        # makes the browser refuse to render it.
         mimetypes.add_type("image/webp", ".webp", strict=True)
         try:
+            await self.migrate_plugin_dir_assets()
             await self.import_default_assets(initial=True)
         except Exception as exc:  # noqa: BLE001
-            # The example art is a convenience only. A failure here (for example
-            # an unwritable plugin directory) must never keep the plugin from
-            # loading; the page can retry the import on demand.
-            self.logger.warning("Skipped example asset import: %s", exc)
+            # Both steps only restore convenience content. A failure here (for
+            # example an unwritable directory) must never keep the plugin from
+            # loading; the page can retry the example import on demand.
+            self.logger.warning("Skipped asset preparation: %s", exc)
         # Logged so a support request can tell whether the reply-blocking call
         # matched this AstrBot version.
         self.logger.info(
@@ -540,14 +564,122 @@ class FriendGalgame(Star):
         self.subscribers.clear()
 
     def list_assets(self) -> list[str]:
-        """List every file uploaded to the page assets directory.
+        """List every image available to the libraries.
 
         Returns:
-            Asset file names sorted alphabetically.
+            Asset file names, sorted, with duplicates removed: the bundled
+            example art plus everything the user uploaded. ``.gitkeep`` and any
+            other non-image file is left out.
         """
-        if not ASSETS_DIR.is_dir():
-            return []
-        return sorted(item.name for item in ASSETS_DIR.iterdir() if item.is_file())
+        names: set[str] = set()
+        for directory in (BUNDLED_ASSETS_DIR, DATA_ASSETS_DIR):
+            if not directory.is_dir():
+                continue
+            names.update(
+                item.name
+                for item in directory.iterdir()
+                if item.is_file() and item.suffix.lower() in ALLOWED_ASSET_SUFFIXES
+            )
+        return sorted(names)
+
+    def find_asset(self, name: str) -> Path | None:
+        """Resolve an asset name to a file, preferring the user's own uploads.
+
+        Args:
+            name: Bare file name as stored in the library.
+
+        Returns:
+            Absolute path of the file, or ``None`` when the name is unsafe, is
+            not an image, or does not exist in either asset directory.
+        """
+        if not name or name != Path(name).name:
+            # Rejects subdirectories, ``..`` and absolute paths.
+            return None
+        if Path(name).suffix.lower() not in ALLOWED_ASSET_SUFFIXES:
+            return None
+        for directory in (DATA_ASSETS_DIR, BUNDLED_ASSETS_DIR):
+            candidate = directory / name
+            if candidate.is_file():
+                return candidate
+        return None
+
+    async def migrate_plugin_dir_assets(self) -> int:
+        """Move uploads that older versions stored inside the plugin directory.
+
+        The plugin directory is replaced on every update, so pictures kept there
+        were silently lost. Moving them next to the database both rescues them
+        and keeps the plugin directory read only. Library entries reference files
+        by bare name, so nothing else has to change.
+
+        Returns:
+            Number of files moved.
+        """
+        if not BUNDLED_ASSETS_DIR.is_dir():
+            return 0
+        moved = 0
+        for item in list(BUNDLED_ASSETS_DIR.iterdir()):
+            if not item.is_file() or item.name.startswith("default_"):
+                continue
+            if item.suffix.lower() not in ALLOWED_ASSET_SUFFIXES:
+                continue
+            target = DATA_ASSETS_DIR / item.name
+            if target.exists():
+                # Already migrated; the plugin directory copy is a leftover.
+                target = DATA_ASSETS_DIR / f"{item.stem}_{int(time())}{item.suffix}"
+            try:
+                item.replace(target)
+            except OSError as exc:
+                self.logger.warning("Could not move %s: %s", item.name, exc)
+                continue
+            moved += 1
+        if moved:
+            self.logger.info("Moved %s uploaded asset(s) out of the plugin dir.", moved)
+        return moved
+
+    def encode_asset(self, path: Path, thumbnail: bool) -> str | None:
+        """Inline one image as a data URL the sandboxed page can display.
+
+        The page runs in an iframe without ``allow-same-origin``, so it cannot
+        authenticate a plain ``<img src>`` against the plugin Web API and every
+        image has to travel through the bridge as text. Thumbnails also keep the
+        library list small when the user uploads multi-megabyte pictures.
+
+        Args:
+            path: Image file to read.
+            thumbnail: Downscale the image for a list thumbnail instead of
+                returning it at display size.
+
+        Returns:
+            A ``data:`` URL, or ``None`` when the image cannot be decoded.
+        """
+        max_side = THUMBNAIL_MAX_SIDE if thumbnail else STAGE_MAX_SIDE
+        quality = THUMBNAIL_QUALITY if thumbnail else STAGE_QUALITY
+        cache = THUMBNAIL_DIR / (
+            hashlib.sha1(
+                f"{path}:{path.stat().st_mtime_ns}:{max_side}".encode()
+            ).hexdigest()
+            + ".webp"
+        )
+        try:
+            if cache.is_file():
+                payload = cache.read_bytes()
+            else:
+                from PIL import Image
+
+                with Image.open(path) as source:
+                    image = source.convert("RGBA")
+                    if max(image.size) > max_side:
+                        image.thumbnail((max_side, max_side), Image.LANCZOS)
+                    buffer = io.BytesIO()
+                    image.save(buffer, format="WEBP", quality=quality, method=4)
+                payload = buffer.getvalue()
+                cache.write_bytes(payload)
+            encoded = base64.b64encode(payload).decode("ascii")
+            return f"data:image/webp;base64,{encoded}"
+        except Exception as exc:  # noqa: BLE001
+            # Also covers a missing Pillow, which only affects resizing.
+            self.logger.warning("Could not encode %s: %s", path.name, exc)
+            return None
 
     async def import_default_assets(self, initial: bool = False) -> dict:
         """Register the bundled example art in the shared libraries.
@@ -578,7 +710,7 @@ class FriendGalgame(Star):
         wanted = [
             (file, tags)
             for file, tags in DEFAULT_SPRITES
-            if (ASSETS_DIR / file).is_file()
+            if (BUNDLED_ASSETS_DIR / file).is_file()
         ]
         if wanted:
             character = next(
@@ -597,7 +729,7 @@ class FriendGalgame(Star):
                 await self.store.add_sprite(character_id, file, tags)
                 added_sprites += 1
         name, file = DEFAULT_BACKGROUND
-        if (ASSETS_DIR / file).is_file() and file not in {
+        if (BUNDLED_ASSETS_DIR / file).is_file() and file not in {
             item["file"] for item in backgrounds
         }:
             await self.store.add_background(name, file)
@@ -1342,8 +1474,27 @@ class FriendGalgame(Star):
             }
         )
 
+    async def api_image(self):
+        """Return one asset as a data URL, optionally downscaled.
+
+        Query:
+            name: Bare file name from the library.
+            thumb: ``1`` for a list thumbnail instead of the display size.
+        """
+        name = str(request.query.get("name") or "").strip()
+        thumbnail = str(request.query.get("thumb") or "").strip() in {"1", "true"}
+        path = self.find_asset(name)
+        if path is None:
+            return error_response("unknown asset file", status_code=404)
+        # Decoding a multi-megabyte picture would otherwise stall every other
+        # task, including the message pipeline.
+        data_url = await asyncio.to_thread(self.encode_asset, path, thumbnail)
+        if data_url is None:
+            return error_response("该图片无法解析，请换一张", status_code=500)
+        return json_response({"data_url": data_url})
+
     async def api_upload(self):
-        """Store an uploaded image inside the page assets directory."""
+        """Store an uploaded image next to the plugin's other persistent data."""
         files = await request.files()
         upload = files.get("file")
         if not isinstance(upload, PluginUploadFile):
@@ -1357,12 +1508,14 @@ class FriendGalgame(Star):
         # AI-generated file names can be longer than the Windows path limit, and
         # they are unreadable in the UI anyway, so keep only a short stem.
         stem = Path(filename).stem[:40] or "asset"
-        ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-        target = ASSETS_DIR / f"{stem}{suffix}"
-        # Bundled example files stay pristine: an upload that collides with one
-        # is stored under a different name instead of overwriting it.
-        if target.exists() or stem.startswith("default_"):
-            target = ASSETS_DIR / f"{stem}_{int(time())}{suffix}"
+        if stem.startswith("default_"):
+            # ``default_*`` marks art that ships inside the plugin and is served
+            # as a plain URL by the page. Never hand that prefix to an upload.
+            stem = f"upload_{stem}"
+        DATA_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+        target = DATA_ASSETS_DIR / f"{stem}{suffix}"
+        if target.exists():
+            target = DATA_ASSETS_DIR / f"{stem}_{int(time())}{suffix}"
         await upload.save(target)
         return json_response({"filename": target.name, "assets": self.list_assets()})
 
