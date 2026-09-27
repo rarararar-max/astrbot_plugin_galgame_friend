@@ -441,6 +441,10 @@ function renderChoices(options) {
   choicesBox.append(again);
   // Keep the floating composer and the option list from overlapping.
   choicesBox.hidden = composerOpen;
+  if (composerOpen) {
+    // Never hide a fresh round silently: without this the candidates look lost.
+    setStatus("有新的候选，关掉「自己写」就能看到", false, true);
+  }
 }
 
 /* ------------------------------ affection effect ------------------------------ */
@@ -1213,6 +1217,10 @@ async function sendText(text, optionId, button) {
     });
     setStatus("");
     clearChoices();
+    // Sending finishes the hand-written reply, so put the composer away. While
+    // it stays open it covers the candidate list (see renderChoices), which
+    // would hide every following round until the user closed it by hand.
+    setComposerOpen(false);
   } catch (error) {
     if (button) button.disabled = false;
     setStatus(`发送失败：${error.message}`, true);
@@ -1272,8 +1280,10 @@ function handleEvent(payload) {
       state.tag = payload.tag || "";
     }
     renderStage();
-    renderChoices(payload.options || []);
+    // Cleared before rendering: renderChoices sets its own hint when the open
+    // composer keeps the candidates hidden.
     setStatus("");
+    renderChoices(payload.options || []);
     return;
   }
   if (type === "my_message") {

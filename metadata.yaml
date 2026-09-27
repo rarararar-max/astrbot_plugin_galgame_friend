@@ -6,7 +6,7 @@ desc: >-
   对话框和三条 AI 生成的回复候选；每条候选带不同的策略角度与好感度增减，
   点一条就直接发给对方。支持共享的角色/背景素材库、按情绪标签自动切换立绘、
   好感度上限 100、过往聊天记录浮窗。自带一套示例立绘与背景，装完即可使用。
-version: 1.0.1
+version: 1.0.2
 author: rarararar-max
 repo: https://github.com/rarararar-max/astrbot_plugin_galgame_friend
 astrbot_version: ">=4.27,<5"
