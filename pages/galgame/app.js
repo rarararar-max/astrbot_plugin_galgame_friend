@@ -119,6 +119,50 @@ function assetUrl(name) {
   return `./assets/${encodeURIComponent(name)}${suffix}`;
 }
 
+// Bundled example art ships inside the page itself, so at display size it can be
+// a plain URL the browser caches.
+function bundledAssetUrl(name) {
+  return name.startsWith("default_") ? assetUrl(name) : "";
+}
+
+// Everything else has to travel through the bridge: uploads live in the plugin
+// data directory, which this sandboxed iframe cannot address by URL, and a list
+// preview of a multi-megabyte upload should not be multi-megabyte. The backend
+// inlines the bytes as a data URL and we remember the result.
+//
+// A file name identifies its content for good: an upload that would collide is
+// stored under a new name, and the backend refuses to hand out the ``default_``
+// prefix. A cached entry therefore never goes stale.
+const assetCache = new Map();
+
+async function resolveAsset(name, { thumb = false } = {}) {
+  if (!name) return "";
+  if (!thumb) {
+    const bundled = bundledAssetUrl(name);
+    if (bundled) return bundled;
+  }
+  const key = `${thumb ? "t" : "f"}:${name}`;
+  const cached = assetCache.get(key);
+  if (cached) return cached;
+  try {
+    const result = await bridge.apiGet("image", { name, thumb: thumb ? 1 : 0 });
+    const url = result?.data_url || "";
+    if (url) assetCache.set(key, url);
+    return url;
+  } catch (error) {
+    console.warn(`读取素材失败：${name}`, error);
+    return "";
+  }
+}
+
+// Fill an <img> without blocking the render: the list appears at once and the
+// pictures follow as they arrive.
+function setAssetImage(element, name, { thumb = true } = {}) {
+  void resolveAsset(name, { thumb }).then((url) => {
+    if (url) element.src = url;
+  });
+}
+
 function friendLabel() {
   return state.binding?.friend_name || "好友";
 }
@@ -248,8 +292,14 @@ function pickSprite(tag) {
  * @param {boolean} entrance true for the first appearance of a character
  *   (fade + slide in), false for an emotion change (cross-fade only)
  */
-function applySprite(file, entrance = false) {
-  const next = file ? `url("${assetUrl(file)}")` : "";
+let spriteSeq = 0;
+
+async function applySprite(file, entrance = false) {
+  const seq = ++spriteSeq;
+  const url = file ? await resolveAsset(file) : "";
+  // A newer request arrived while this one was fetching its picture.
+  if (seq !== spriteSeq) return;
+  const next = url ? `url("${url}")` : "";
   window.clearTimeout(state.spriteTimer);
 
   if (entrance) {
@@ -287,12 +337,15 @@ function applySprite(file, entrance = false) {
   }, 340);
 }
 
-function renderStage() {
+let stageSeq = 0;
+
+async function renderStage() {
   const binding = state.binding;
+  const seq = ++stageSeq;
   emptyBox.hidden = Boolean(binding);
   if (!binding) {
     vnBg.style.backgroundImage = "";
-    applySprite("");
+    await applySprite("");
     tagName.hidden = true;
     tagEmotion.hidden = true;
     tagAffection.hidden = true;
@@ -308,10 +361,12 @@ function renderStage() {
   const affection = Math.max(0, Math.min(100, Number(binding.affection) || 0));
   tagAffection.textContent = `❤ ${affection} / 100`;
   tagAffection.style.setProperty("--aff", `${affection}%`);
-  vnBg.style.backgroundImage = state.background?.file
-    ? `url("${assetUrl(state.background.file)}")`
-    : "";
-  applySprite(pickSprite(state.tag), state.pendingEntrance);
+  const backgroundFile = state.background?.file;
+  const backgroundUrl = backgroundFile ? await resolveAsset(backgroundFile) : "";
+  // A newer render started while this one was fetching its background.
+  if (seq !== stageSeq) return;
+  vnBg.style.backgroundImage = backgroundUrl ? `url("${backgroundUrl}")` : "";
+  await applySprite(pickSprite(state.tag), state.pendingEntrance);
   state.pendingEntrance = false;
   renderBindingEditor();
 }
@@ -813,7 +868,7 @@ function renderSpriteList() {
 
     const thumb = document.createElement("img");
     thumb.className = "sprite-thumb";
-    thumb.src = assetUrl(sprite.file);
+    setAssetImage(thumb, sprite.file, { thumb: true });
     thumb.alt = sprite.file;
     thumb.title = "点一下在舞台上预览";
     // Sprites are a few MB each; only fetch the ones actually scrolled into view.
@@ -952,7 +1007,7 @@ function renderBackgroundList() {
     item.className = "background-item";
     const thumb = document.createElement("img");
     thumb.className = "background-thumb";
-    thumb.src = assetUrl(background.file);
+    setAssetImage(thumb, background.file, { thumb: true });
     thumb.alt = background.name;
     thumb.loading = "lazy";
     thumb.decoding = "async";
